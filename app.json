@@ -1,0 +1,13 @@
+{
+    "healthchecks": {
+      "web": [
+        {
+          "name": "default",
+          "type": "startup",
+          "timeout": 60,
+          "wait": 10
+        }
+      ]
+    }
+  }
+
