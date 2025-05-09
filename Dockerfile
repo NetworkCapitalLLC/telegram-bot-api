@@ -31,4 +31,4 @@ RUN cd build && make install
 EXPOSE 8081
 
 # Command to run the telegram-bot-api
-CMD ["/usr/local/bin/telegram-bot-api", "--api-id", "$API_ID", "--api-hash", "$API_HASH", "--dir", "/app/data"]
+CMD ["/usr/local/bin/telegram-bot-api", "--dir", "/app/data"]
