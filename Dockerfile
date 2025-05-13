@@ -29,4 +29,4 @@ RUN mkdir build && cd build && \
 RUN cd build && make install
 
 # Command to run the telegram-bot-api
-CMD ["/usr/local/bin/telegram-bot-api", "--local", "--dir", "/app/data"]
+CMD ["/usr/local/bin/telegram-bot-api", "--local", "--dir", "/app/data", "--log-max-file-size", "20000000", "--verbosity", "3"]
