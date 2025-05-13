@@ -28,7 +28,5 @@ RUN mkdir build && cd build && \
 # Install the binary
 RUN cd build && make install
 
-USER dokku
-
 # Command to run the telegram-bot-api
 CMD ["/usr/local/bin/telegram-bot-api", "--local", "--dir", "/app/data"]
