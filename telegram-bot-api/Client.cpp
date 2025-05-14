@@ -7619,7 +7619,7 @@ void Client::on_update_authorization_state() {
   CHECK(authorization_state_ != nullptr);
   switch (authorization_state_->get_id()) {
     case td_api::authorizationStateWaitTdlibParameters::ID: {
-      for (td::string option : {"disable_network_statistics", "disable_time_adjustment_protection", "ignore_file_names",
+      for (td::string option : {"disable_network_statistics", "disable_time_adjustment_protection",
                                 "ignore_inline_thumbnails", "reuse_uploaded_photos_by_hash", "use_storage_optimizer"}) {
         send_request(make_object<td_api::setOption>(option, make_object<td_api::optionValueBoolean>(true)),
                      td::make_unique<TdOnOkCallback>());
