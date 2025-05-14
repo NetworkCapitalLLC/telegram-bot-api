@@ -7624,6 +7624,9 @@ void Client::on_update_authorization_state() {
         send_request(make_object<td_api::setOption>(option, make_object<td_api::optionValueBoolean>(true)),
                      td::make_unique<TdOnOkCallback>());
       }
+      // Set ignore_file_names to false
+      send_request(make_object<td_api::setOption>("ignore_file_names", make_object<td_api::optionValueBoolean>(false)),
+                   td::make_unique<TdOnOkCallback>());
 
       auto request = make_object<td_api::setTdlibParameters>();
       request->use_test_dc_ = is_test_dc_;
