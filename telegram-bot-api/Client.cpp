@@ -235,6 +235,7 @@ bool Client::init_methods() {
   methods_.emplace("sendcontact", &Client::process_send_contact_query);
   methods_.emplace("sendpoll", &Client::process_send_poll_query);
   methods_.emplace("stoppoll", &Client::process_stop_poll_query);
+  methods_.emplace("sendchecklist", &Client::process_send_checklist_query);
   methods_.emplace("copymessage", &Client::process_copy_message_query);
   methods_.emplace("copymessages", &Client::process_copy_messages_query);
   methods_.emplace("forwardmessage", &Client::process_forward_message_query);
@@ -247,6 +248,7 @@ bool Client::init_methods() {
   methods_.emplace("stopmessagelivelocation", &Client::process_edit_message_live_location_query);
   methods_.emplace("editmessagemedia", &Client::process_edit_message_media_query);
   methods_.emplace("editmessagecaption", &Client::process_edit_message_caption_query);
+  methods_.emplace("editmessagechecklist", &Client::process_edit_message_checklist_query);
   methods_.emplace("editmessagereplymarkup", &Client::process_edit_message_reply_markup_query);
   methods_.emplace("deletemessage", &Client::process_delete_message_query);
   methods_.emplace("deletemessages", &Client::process_delete_messages_query);
@@ -254,6 +256,7 @@ bool Client::init_methods() {
   methods_.emplace("editstory", &Client::process_edit_story_query);
   methods_.emplace("deletestory", &Client::process_delete_story_query);
   methods_.emplace("createinvoicelink", &Client::process_create_invoice_link_query);
+  methods_.emplace("getmystarbalance", &Client::process_get_my_star_balance_query);
   methods_.emplace("getstartransactions", &Client::process_get_star_transactions_query);
   methods_.emplace("refundstarpayment", &Client::process_refund_star_payment_query);
   methods_.emplace("edituserstarsubscription", &Client::process_edit_user_star_subscription_query);
@@ -303,6 +306,8 @@ bool Client::init_methods() {
   methods_.emplace("pinchatmessage", &Client::process_pin_chat_message_query);
   methods_.emplace("unpinchatmessage", &Client::process_unpin_chat_message_query);
   methods_.emplace("unpinallchatmessages", &Client::process_unpin_all_chat_messages_query);
+  methods_.emplace("approvesuggestedpost", &Client::process_approve_suggested_post_query);
+  methods_.emplace("declinesuggestedpost", &Client::process_decline_suggested_post_query);
   methods_.emplace("setchatstickerset", &Client::process_set_chat_sticker_set_query);
   methods_.emplace("deletechatstickerset", &Client::process_delete_chat_sticker_set_query);
   methods_.emplace("getforumtopiciconstickers", &Client::process_get_forum_topic_icon_stickers_query);
@@ -725,127 +730,6 @@ class Client::JsonLocation final : public td::Jsonable {
   int32 proximity_alert_radius_;
 };
 
-class Client::JsonGift final : public td::Jsonable {
- public:
-  JsonGift(const td_api::gift *gift, const Client *client) : gift_(gift), client_(client) {
-  }
-  void store(td::JsonValueScope *scope) const {
-    auto object = scope->enter_object();
-    object("id", td::to_string(gift_->id_));
-    object("sticker", JsonSticker(gift_->sticker_.get(), client_));
-    object("star_count", gift_->star_count_);
-    if (gift_->upgrade_star_count_ > 0) {
-      object("upgrade_star_count", gift_->upgrade_star_count_);
-    }
-    if (gift_->total_count_ > 0) {
-      object("remaining_count", gift_->remaining_count_);
-      object("total_count", gift_->total_count_);
-    }
-  }
-
- private:
-  const td_api::gift *gift_;
-  const Client *client_;
-};
-
-class Client::JsonGifts final : public td::Jsonable {
- public:
-  JsonGifts(const td_api::gifts *gifts, const Client *client) : gifts_(gifts), client_(client) {
-  }
-  void store(td::JsonValueScope *scope) const {
-    auto object = scope->enter_object();
-    object("gifts",
-           td::json_array(gifts_->gifts_, [client = client_](auto &gift) { return JsonGift(gift.get(), client); }));
-  }
-
- private:
-  const td_api::gifts *gifts_;
-  const Client *client_;
-};
-
-class Client::JsonUniqueGiftModel final : public td::Jsonable {
- public:
-  JsonUniqueGiftModel(const td_api::upgradedGiftModel *model, const Client *client) : model_(model), client_(client) {
-  }
-  void store(td::JsonValueScope *scope) const {
-    auto object = scope->enter_object();
-    object("name", model_->name_);
-    object("sticker", JsonSticker(model_->sticker_.get(), client_));
-    object("rarity_per_mille", model_->rarity_per_mille_);
-  }
-
- private:
-  const td_api::upgradedGiftModel *model_;
-  const Client *client_;
-};
-
-class Client::JsonUniqueGiftSymbol final : public td::Jsonable {
- public:
-  JsonUniqueGiftSymbol(const td_api::upgradedGiftSymbol *symbol, const Client *client)
-      : symbol_(symbol), client_(client) {
-  }
-  void store(td::JsonValueScope *scope) const {
-    auto object = scope->enter_object();
-    object("name", symbol_->name_);
-    object("sticker", JsonSticker(symbol_->sticker_.get(), client_));
-    object("rarity_per_mille", symbol_->rarity_per_mille_);
-  }
-
- private:
-  const td_api::upgradedGiftSymbol *symbol_;
-  const Client *client_;
-};
-
-class Client::JsonUniqueGiftBackdropColors final : public td::Jsonable {
- public:
-  explicit JsonUniqueGiftBackdropColors(const td_api::upgradedGiftBackdropColors *colors) : colors_(colors) {
-  }
-  void store(td::JsonValueScope *scope) const {
-    auto object = scope->enter_object();
-    object("center_color", colors_->center_color_);
-    object("edge_color", colors_->edge_color_);
-    object("symbol_color", colors_->symbol_color_);
-    object("text_color", colors_->text_color_);
-  }
-
- private:
-  const td_api::upgradedGiftBackdropColors *colors_;
-};
-
-class Client::JsonUniqueGiftBackdrop final : public td::Jsonable {
- public:
-  explicit JsonUniqueGiftBackdrop(const td_api::upgradedGiftBackdrop *backdrop) : backdrop_(backdrop) {
-  }
-  void store(td::JsonValueScope *scope) const {
-    auto object = scope->enter_object();
-    object("name", backdrop_->name_);
-    object("colors", JsonUniqueGiftBackdropColors(backdrop_->colors_.get()));
-    object("rarity_per_mille", backdrop_->rarity_per_mille_);
-  }
-
- private:
-  const td_api::upgradedGiftBackdrop *backdrop_;
-};
-
-class Client::JsonUniqueGift final : public td::Jsonable {
- public:
-  JsonUniqueGift(const td_api::upgradedGift *gift, const Client *client) : gift_(gift), client_(client) {
-  }
-  void store(td::JsonValueScope *scope) const {
-    auto object = scope->enter_object();
-    object("base_name", gift_->title_);
-    object("name", gift_->name_);
-    object("number", gift_->number_);
-    object("model", JsonUniqueGiftModel(gift_->model_.get(), client_));
-    object("symbol", JsonUniqueGiftSymbol(gift_->symbol_.get(), client_));
-    object("backdrop", JsonUniqueGiftBackdrop(gift_->backdrop_.get()));
-  }
-
- private:
-  const td_api::upgradedGift *gift_;
-  const Client *client_;
-};
-
 class Client::JsonReactionType final : public td::Jsonable {
  public:
   explicit JsonReactionType(const td_api::ReactionType *reaction_type) : reaction_type_(reaction_type) {
@@ -1217,8 +1101,13 @@ class Client::JsonChat final : public td::Jsonable {
         if (!supergroup_info->active_usernames.empty()) {
           object("username", supergroup_info->active_usernames[0]);
         }
-        if (supergroup_info->is_supergroup && supergroup_info->is_forum) {
-          object("is_forum", td::JsonTrue());
+        if (supergroup_info->is_supergroup) {
+          if (supergroup_info->is_forum) {
+            object("is_forum", td::JsonTrue());
+          }
+          if (supergroup_info->is_direct_messages) {
+            object("is_direct_messages", td::JsonTrue());
+          }
         }
 
         if (supergroup_info->is_supergroup) {
@@ -1285,6 +1174,9 @@ class Client::JsonChat final : public td::Jsonable {
           }
           if (supergroup_info->linked_chat_id != 0) {
             object("linked_chat_id", supergroup_info->linked_chat_id);
+          }
+          if (supergroup_info->is_direct_messages && supergroup_info->direct_messages_chat_id != 0) {
+            object("parent_chat", JsonChat(supergroup_info->direct_messages_chat_id, client_));
           }
           if (supergroup_info->location != nullptr) {
             object("location", JsonChatLocation(supergroup_info->location.get()));
@@ -1379,6 +1271,210 @@ class Client::JsonChat final : public td::Jsonable {
   const Client *client_;
   bool is_full_;
   int64 pinned_message_id_;
+};
+
+class Client::JsonGift final : public td::Jsonable {
+ public:
+  JsonGift(const td_api::gift *gift, const Client *client) : gift_(gift), client_(client) {
+  }
+  void store(td::JsonValueScope *scope) const {
+    auto object = scope->enter_object();
+    object("id", td::to_string(gift_->id_));
+    object("sticker", JsonSticker(gift_->sticker_.get(), client_));
+    object("star_count", gift_->star_count_);
+    if (gift_->upgrade_star_count_ > 0) {
+      object("upgrade_star_count", gift_->upgrade_star_count_);
+    }
+    if (gift_->total_count_ > 0) {
+      object("remaining_count", gift_->remaining_count_);
+      object("total_count", gift_->total_count_);
+    }
+    if (gift_->publisher_chat_id_ != 0) {
+      object("publisher_chat", JsonChat(gift_->publisher_chat_id_, client_));
+    }
+  }
+
+ private:
+  const td_api::gift *gift_;
+  const Client *client_;
+};
+
+class Client::JsonGifts final : public td::Jsonable {
+ public:
+  JsonGifts(const td::vector<td_api::object_ptr<td_api::gift>> &gifts, const Client *client)
+      : gifts_(gifts), client_(client) {
+  }
+  void store(td::JsonValueScope *scope) const {
+    auto object = scope->enter_object();
+    object("gifts", td::json_array(gifts_, [client = client_](auto &gift) { return JsonGift(gift.get(), client); }));
+  }
+
+ private:
+  const td::vector<td_api::object_ptr<td_api::gift>> &gifts_;
+  const Client *client_;
+};
+
+class Client::JsonUniqueGiftModel final : public td::Jsonable {
+ public:
+  JsonUniqueGiftModel(const td_api::upgradedGiftModel *model, const Client *client) : model_(model), client_(client) {
+  }
+  void store(td::JsonValueScope *scope) const {
+    auto object = scope->enter_object();
+    object("name", model_->name_);
+    object("sticker", JsonSticker(model_->sticker_.get(), client_));
+    object("rarity_per_mille", model_->rarity_per_mille_);
+  }
+
+ private:
+  const td_api::upgradedGiftModel *model_;
+  const Client *client_;
+};
+
+class Client::JsonUniqueGiftSymbol final : public td::Jsonable {
+ public:
+  JsonUniqueGiftSymbol(const td_api::upgradedGiftSymbol *symbol, const Client *client)
+      : symbol_(symbol), client_(client) {
+  }
+  void store(td::JsonValueScope *scope) const {
+    auto object = scope->enter_object();
+    object("name", symbol_->name_);
+    object("sticker", JsonSticker(symbol_->sticker_.get(), client_));
+    object("rarity_per_mille", symbol_->rarity_per_mille_);
+  }
+
+ private:
+  const td_api::upgradedGiftSymbol *symbol_;
+  const Client *client_;
+};
+
+class Client::JsonUniqueGiftBackdropColors final : public td::Jsonable {
+ public:
+  explicit JsonUniqueGiftBackdropColors(const td_api::upgradedGiftBackdropColors *colors) : colors_(colors) {
+  }
+  void store(td::JsonValueScope *scope) const {
+    auto object = scope->enter_object();
+    object("center_color", colors_->center_color_);
+    object("edge_color", colors_->edge_color_);
+    object("symbol_color", colors_->symbol_color_);
+    object("text_color", colors_->text_color_);
+  }
+
+ private:
+  const td_api::upgradedGiftBackdropColors *colors_;
+};
+
+class Client::JsonUniqueGiftBackdrop final : public td::Jsonable {
+ public:
+  explicit JsonUniqueGiftBackdrop(const td_api::upgradedGiftBackdrop *backdrop) : backdrop_(backdrop) {
+  }
+  void store(td::JsonValueScope *scope) const {
+    auto object = scope->enter_object();
+    object("name", backdrop_->name_);
+    object("colors", JsonUniqueGiftBackdropColors(backdrop_->colors_.get()));
+    object("rarity_per_mille", backdrop_->rarity_per_mille_);
+  }
+
+ private:
+  const td_api::upgradedGiftBackdrop *backdrop_;
+};
+
+class Client::JsonUniqueGift final : public td::Jsonable {
+ public:
+  JsonUniqueGift(const td_api::upgradedGift *gift, const Client *client) : gift_(gift), client_(client) {
+  }
+  void store(td::JsonValueScope *scope) const {
+    auto object = scope->enter_object();
+    object("base_name", gift_->title_);
+    object("name", gift_->name_);
+    object("number", gift_->number_);
+    object("model", JsonUniqueGiftModel(gift_->model_.get(), client_));
+    object("symbol", JsonUniqueGiftSymbol(gift_->symbol_.get(), client_));
+    object("backdrop", JsonUniqueGiftBackdrop(gift_->backdrop_.get()));
+    if (gift_->publisher_chat_id_ != 0) {
+      object("publisher_chat", JsonChat(gift_->publisher_chat_id_, client_));
+    }
+  }
+
+ private:
+  const td_api::upgradedGift *gift_;
+  const Client *client_;
+};
+
+class Client::JsonStarAmount final : public td::Jsonable {
+ public:
+  explicit JsonStarAmount(const td_api::starAmount *amount) : amount_(amount) {
+  }
+  void store(td::JsonValueScope *scope) const {
+    auto object = scope->enter_object();
+    object("amount", amount_->star_count_);
+    if (amount_->nanostar_count_ != 0) {
+      object("nanostar_amount", amount_->nanostar_count_);
+    }
+  }
+
+ private:
+  const td_api::starAmount *amount_;
+};
+
+class Client::JsonSuggestedPostPrice final : public td::Jsonable {
+ public:
+  explicit JsonSuggestedPostPrice(const td_api::SuggestedPostPrice *suggested_post_price)
+      : suggested_post_price_(suggested_post_price) {
+  }
+  void store(td::JsonValueScope *scope) const {
+    auto object = scope->enter_object();
+    switch (suggested_post_price_->get_id()) {
+      case td_api::suggestedPostPriceStar::ID:
+        object("currency", "XTR");
+        object("amount", static_cast<const td_api::suggestedPostPriceStar *>(suggested_post_price_)->star_count_);
+        break;
+      case td_api::suggestedPostPriceTon::ID:
+        object("currency", "TON");
+        object(
+            "amount",
+            static_cast<const td_api::suggestedPostPriceTon *>(suggested_post_price_)->toncoin_cent_count_ * 10000000);
+        break;
+      default:
+        UNREACHABLE();
+        break;
+    }
+  }
+
+ private:
+  const td_api::SuggestedPostPrice *suggested_post_price_;
+};
+
+class Client::JsonSuggestedPostInfo final : public td::Jsonable {
+ public:
+  explicit JsonSuggestedPostInfo(const td_api::suggestedPostInfo *suggested_post_info)
+      : suggested_post_info_(suggested_post_info) {
+  }
+  void store(td::JsonValueScope *scope) const {
+    auto object = scope->enter_object();
+    if (suggested_post_info_->price_ != nullptr) {
+      object("price", JsonSuggestedPostPrice(suggested_post_info_->price_.get()));
+    }
+    if (suggested_post_info_->send_date_ != 0) {
+      object("send_date", suggested_post_info_->send_date_);
+    }
+    switch (suggested_post_info_->state_->get_id()) {
+      case td_api::suggestedPostStatePending::ID:
+        object("state", "pending");
+        break;
+      case td_api::suggestedPostStateApproved::ID:
+        object("state", "approved");
+        break;
+      case td_api::suggestedPostStateDeclined::ID:
+        object("state", "declined");
+        break;
+      default:
+        UNREACHABLE();
+        break;
+    }
+  }
+
+ private:
+  const td_api::suggestedPostInfo *suggested_post_info_;
 };
 
 class Client::JsonInaccessibleMessage final : public td::Jsonable {
@@ -2018,6 +2114,237 @@ class Client::JsonPollAnswer final : public td::Jsonable {
   const Client *client_;
 };
 
+class Client::JsonChecklistTask final : public td::Jsonable {
+ public:
+  JsonChecklistTask(const td_api::checklistTask *task, const Client *client) : task_(task), client_(client) {
+  }
+  void store(td::JsonValueScope *scope) const {
+    auto object = scope->enter_object();
+    object("id", task_->id_);
+    object("text", task_->text_->text_);
+    if (!task_->text_->entities_.empty()) {
+      object("text_entities", JsonVectorEntities(task_->text_->entities_, client_));
+    }
+    if (task_->completed_by_user_id_ != 0 && task_->completion_date_ != 0) {
+      object("completed_by_user", JsonUser(task_->completed_by_user_id_, client_));
+      object("completion_date", task_->completion_date_);
+    }
+  }
+
+ private:
+  const td_api::checklistTask *task_;
+  const Client *client_;
+};
+
+class Client::JsonChecklist final : public td::Jsonable {
+ public:
+  JsonChecklist(const td_api::checklist *checklist, const Client *client) : checklist_(checklist), client_(client) {
+  }
+  void store(td::JsonValueScope *scope) const {
+    auto object = scope->enter_object();
+    object("title", checklist_->title_->text_);
+    if (!checklist_->title_->entities_.empty()) {
+      object("title_entities", JsonVectorEntities(checklist_->title_->entities_, client_));
+    }
+    object("tasks", td::json_array(checklist_->tasks_,
+                                   [client = client_](auto &task) { return JsonChecklistTask(task.get(), client); }));
+    if (checklist_->others_can_add_tasks_) {
+      object("others_can_add_tasks", td::JsonTrue());
+    }
+    if (checklist_->others_can_mark_tasks_as_done_) {
+      object("others_can_mark_tasks_as_done", td::JsonTrue());
+    }
+  }
+
+ private:
+  const td_api::checklist *checklist_;
+  const Client *client_;
+};
+
+class Client::JsonChecklistTasksDone final : public td::Jsonable {
+ public:
+  JsonChecklistTasksDone(const td_api::messageChecklistTasksDone *checklist_tasks_done, int64 chat_id,
+                         const Client *client)
+      : checklist_tasks_done_(checklist_tasks_done), chat_id_(chat_id), client_(client) {
+  }
+  void store(td::JsonValueScope *scope) const {
+    auto object = scope->enter_object();
+    const MessageInfo *checklist_message =
+        client_->get_message(chat_id_, checklist_tasks_done_->checklist_message_id_, true);
+    if (checklist_message != nullptr) {
+      object("checklist_message", JsonMessage(checklist_message, false, "checklist tasks done", client_));
+    }
+    if (!checklist_tasks_done_->marked_as_done_task_ids_.empty()) {
+      object("marked_as_done_task_ids",
+             td::json_array(checklist_tasks_done_->marked_as_done_task_ids_, [](int32 task_id) { return task_id; }));
+    }
+    if (!checklist_tasks_done_->marked_as_not_done_task_ids_.empty()) {
+      object("marked_as_not_done_task_ids", td::json_array(checklist_tasks_done_->marked_as_not_done_task_ids_,
+                                                           [](int32 task_id) { return task_id; }));
+    }
+  }
+
+ private:
+  const td_api::messageChecklistTasksDone *checklist_tasks_done_;
+  int64 chat_id_;
+  const Client *client_;
+};
+
+class Client::JsonChecklistTasksAdded final : public td::Jsonable {
+ public:
+  JsonChecklistTasksAdded(const td_api::messageChecklistTasksAdded *checklist_tasks_added, int64 chat_id,
+                          const Client *client)
+      : checklist_tasks_added_(checklist_tasks_added), chat_id_(chat_id), client_(client) {
+  }
+  void store(td::JsonValueScope *scope) const {
+    auto object = scope->enter_object();
+    const MessageInfo *checklist_message =
+        client_->get_message(chat_id_, checklist_tasks_added_->checklist_message_id_, true);
+    if (checklist_message != nullptr) {
+      object("checklist_message", JsonMessage(checklist_message, false, "checklist tasks added", client_));
+    }
+    object("tasks", td::json_array(checklist_tasks_added_->tasks_,
+                                   [client = client_](auto &task) { return JsonChecklistTask(task.get(), client); }));
+  }
+
+ private:
+  const td_api::messageChecklistTasksAdded *checklist_tasks_added_;
+  int64 chat_id_;
+  const Client *client_;
+};
+
+class Client::JsonSuggestedPostApprovalFailed final : public td::Jsonable {
+ public:
+  JsonSuggestedPostApprovalFailed(const td_api::messageSuggestedPostApprovalFailed *suggested_post_approval_failed,
+                                  int64 chat_id, const Client *client)
+      : suggested_post_approval_failed_(suggested_post_approval_failed), chat_id_(chat_id), client_(client) {
+  }
+  void store(td::JsonValueScope *scope) const {
+    auto object = scope->enter_object();
+    const MessageInfo *suggested_post_message =
+        client_->get_message(chat_id_, suggested_post_approval_failed_->suggested_post_message_id_, true);
+    if (suggested_post_message != nullptr) {
+      object("suggested_post_message",
+             JsonMessage(suggested_post_message, false, "suggested post approval failed", client_));
+    }
+    object("price", JsonSuggestedPostPrice(suggested_post_approval_failed_->price_.get()));
+  }
+
+ private:
+  const td_api::messageSuggestedPostApprovalFailed *suggested_post_approval_failed_;
+  int64 chat_id_;
+  const Client *client_;
+};
+
+class Client::JsonSuggestedPostApproved final : public td::Jsonable {
+ public:
+  JsonSuggestedPostApproved(const td_api::messageSuggestedPostApproved *suggested_post_approved, int64 chat_id,
+                            const Client *client)
+      : suggested_post_approved_(suggested_post_approved), chat_id_(chat_id), client_(client) {
+  }
+  void store(td::JsonValueScope *scope) const {
+    auto object = scope->enter_object();
+    const MessageInfo *suggested_post_message =
+        client_->get_message(chat_id_, suggested_post_approved_->suggested_post_message_id_, true);
+    if (suggested_post_message != nullptr) {
+      object("suggested_post_message", JsonMessage(suggested_post_message, false, "suggested post approved", client_));
+    }
+    if (suggested_post_approved_->price_ != nullptr) {
+      object("price", JsonSuggestedPostPrice(suggested_post_approved_->price_.get()));
+    }
+    object("send_date", suggested_post_approved_->send_date_);
+  }
+
+ private:
+  const td_api::messageSuggestedPostApproved *suggested_post_approved_;
+  int64 chat_id_;
+  const Client *client_;
+};
+
+class Client::JsonSuggestedPostDeclined final : public td::Jsonable {
+ public:
+  JsonSuggestedPostDeclined(const td_api::messageSuggestedPostDeclined *suggested_post_declined, int64 chat_id,
+                            const Client *client)
+      : suggested_post_declined_(suggested_post_declined), chat_id_(chat_id), client_(client) {
+  }
+  void store(td::JsonValueScope *scope) const {
+    auto object = scope->enter_object();
+    const MessageInfo *suggested_post_message =
+        client_->get_message(chat_id_, suggested_post_declined_->suggested_post_message_id_, true);
+    if (suggested_post_message != nullptr) {
+      object("suggested_post_message", JsonMessage(suggested_post_message, false, "suggested post declined", client_));
+    }
+    if (!suggested_post_declined_->comment_.empty()) {
+      object("comment", suggested_post_declined_->comment_);
+    }
+  }
+
+ private:
+  const td_api::messageSuggestedPostDeclined *suggested_post_declined_;
+  int64 chat_id_;
+  const Client *client_;
+};
+
+class Client::JsonSuggestedPostPaid final : public td::Jsonable {
+ public:
+  JsonSuggestedPostPaid(const td_api::messageSuggestedPostPaid *suggested_post_paid, int64 chat_id,
+                        const Client *client)
+      : suggested_post_paid_(suggested_post_paid), chat_id_(chat_id), client_(client) {
+  }
+  void store(td::JsonValueScope *scope) const {
+    auto object = scope->enter_object();
+    const MessageInfo *suggested_post_message =
+        client_->get_message(chat_id_, suggested_post_paid_->suggested_post_message_id_, true);
+    if (suggested_post_message != nullptr) {
+      object("suggested_post_message", JsonMessage(suggested_post_message, false, "suggested post paid", client_));
+    }
+    if (suggested_post_paid_->star_amount_->star_count_ != 0 ||
+        suggested_post_paid_->star_amount_->nanostar_count_ != 0) {
+      object("currency", "XTR");
+      object("star_amount", JsonStarAmount(suggested_post_paid_->star_amount_.get()));
+    } else {
+      object("currency", "TON");
+      object("amount", suggested_post_paid_->ton_amount_);
+    }
+  }
+
+ private:
+  const td_api::messageSuggestedPostPaid *suggested_post_paid_;
+  int64 chat_id_;
+  const Client *client_;
+};
+
+class Client::JsonSuggestedPostRefunded final : public td::Jsonable {
+ public:
+  JsonSuggestedPostRefunded(const td_api::messageSuggestedPostRefunded *suggested_post_refunded, int64 chat_id,
+                            const Client *client)
+      : suggested_post_refunded_(suggested_post_refunded), chat_id_(chat_id), client_(client) {
+  }
+  void store(td::JsonValueScope *scope) const {
+    auto object = scope->enter_object();
+    const MessageInfo *suggested_post_message =
+        client_->get_message(chat_id_, suggested_post_refunded_->suggested_post_message_id_, true);
+    if (suggested_post_message != nullptr) {
+      object("suggested_post_message", JsonMessage(suggested_post_message, false, "suggested post refunded", client_));
+    }
+    switch (suggested_post_refunded_->reason_->get_id()) {
+      case td_api::suggestedPostRefundReasonPostDeleted::ID:
+        object("reason", "post_deleted");
+        break;
+      case td_api::suggestedPostRefundReasonPaymentRefunded::ID:
+        object("reason", "payment_refunded");
+        break;
+      default:
+        UNREACHABLE();
+    }
+  }
+
+ private:
+  const td_api::messageSuggestedPostRefunded *suggested_post_refunded_;
+  int64 chat_id_;
+  const Client *client_;
+};
+
 class Client::JsonStory final : public td::Jsonable {
  public:
   JsonStory(int64 chat_id, int32 story_id, const Client *client)
@@ -2380,9 +2707,27 @@ class Client::JsonUniqueGiftMessage final : public td::Jsonable {
       object("owned_gift_id", gift_->received_gift_id_);
       if (gift_->can_be_transferred_) {
         object("transfer_star_count", gift_->transfer_star_count_);
+        if (gift_->next_transfer_date_ > 0) {
+          object("next_transfer_date", gift_->next_transfer_date_);
+        }
       }
     }
-    object("origin", gift_->is_upgrade_ ? td::Slice("upgrade") : td::Slice("transfer"));
+    switch (gift_->origin_->get_id()) {
+      case td_api::upgradedGiftOriginUpgrade::ID:
+        object("origin", "upgrade");
+        break;
+      case td_api::upgradedGiftOriginTransfer::ID:
+        object("origin", "transfer");
+        break;
+      case td_api::upgradedGiftOriginResale::ID: {
+        auto origin = static_cast<const td_api::upgradedGiftOriginResale *>(gift_->origin_.get());
+        object("origin", "resale");
+        object("last_resale_star_count", origin->star_count_);
+        break;
+      }
+      default:
+        UNREACHABLE();
+    }
   }
 
  private:
@@ -2869,6 +3214,23 @@ class Client::JsonPaidMessagePriceChanged final : public td::Jsonable {
   const td_api::messagePaidMessagePriceChanged *price_changed_;
 };
 
+class Client::JsonDirectMessagePriceChanged final : public td::Jsonable {
+ public:
+  explicit JsonDirectMessagePriceChanged(const td_api::messageDirectMessagePriceChanged *price_changed)
+      : price_changed_(price_changed) {
+  }
+  void store(td::JsonValueScope *scope) const {
+    auto object = scope->enter_object();
+    object("are_direct_messages_enabled", td::JsonBool(price_changed_->is_enabled_));
+    if (price_changed_->paid_message_star_count_ > 0) {
+      object("direct_message_star_count", price_changed_->paid_message_star_count_);
+    }
+  }
+
+ private:
+  const td_api::messageDirectMessagePriceChanged *price_changed_;
+};
+
 class Client::JsonWebAppInfo final : public td::Jsonable {
  public:
   explicit JsonWebAppInfo(const td::string &url) : url_(url) {
@@ -3012,6 +3374,21 @@ class Client::JsonReplyMarkup final : public td::Jsonable {
   const td_api::ReplyMarkup *reply_markup_;
 };
 
+class Client::JsonDirectMessagesTopic final : public td::Jsonable {
+ public:
+  JsonDirectMessagesTopic(int64 topic_id, const Client *client) : topic_id_(topic_id), client_(client) {
+  }
+  void store(td::JsonValueScope *scope) const {
+    auto object = scope->enter_object();
+    object("topic_id", topic_id_);
+    object("user", JsonUser(topic_id_, client_));
+  }
+
+ private:
+  int64 topic_id_;
+  const Client *client_;
+};
+
 class Client::JsonExternalReplyInfo final : public td::Jsonable {
  public:
   JsonExternalReplyInfo(const td_api::messageReplyToMessage *reply, const Client *client)
@@ -3134,7 +3511,12 @@ class Client::JsonExternalReplyInfo final : public td::Jsonable {
         }
         case td_api::messageStory::ID: {
           auto content = static_cast<const td_api::messageStory *>(reply_->content_.get());
-          object("story", JsonStory(content->story_sender_chat_id_, content->story_id_, client_));
+          object("story", JsonStory(content->story_poster_chat_id_, content->story_id_, client_));
+          break;
+        }
+        case td_api::messageChecklist::ID: {
+          auto content = static_cast<const td_api::messageChecklist *>(reply_->content_.get());
+          object("checklist", JsonChecklist(content->list_.get(), client_));
           break;
         }
         default:
@@ -3265,9 +3647,12 @@ void Client::JsonMessage::store(td::JsonValueScope *scope) const {
   if (message_->reply_to_message != nullptr && message_->reply_to_message->quote_ != nullptr) {
     object("quote", JsonTextQuote(message_->reply_to_message->quote_.get(), client_));
   }
+  if (message_->reply_to_message != nullptr && message_->reply_to_message->checklist_task_id_ != 0) {
+    object("reply_to_checklist_task_id", message_->reply_to_message->checklist_task_id_);
+  }
   if (message_->reply_to_story != nullptr) {
     object("reply_to_story",
-           JsonStory(message_->reply_to_story->story_sender_chat_id_, message_->reply_to_story->story_id_, client_));
+           JsonStory(message_->reply_to_story->story_poster_chat_id_, message_->reply_to_story->story_id_, client_));
   }
   if (message_->media_album_id != 0) {
     object("media_group_id", td::to_string(message_->media_album_id));
@@ -3615,7 +4000,7 @@ void Client::JsonMessage::store(td::JsonValueScope *scope) const {
     }
     case td_api::messageStory::ID: {
       auto content = static_cast<const td_api::messageStory *>(message_->content.get());
-      object("story", JsonStory(content->story_sender_chat_id_, content->story_id_, client_));
+      object("story", JsonStory(content->story_poster_chat_id_, content->story_id_, client_));
       break;
     }
     case td_api::messageChatSetBackground::ID: {
@@ -3681,6 +4066,55 @@ void Client::JsonMessage::store(td::JsonValueScope *scope) const {
       object("paid_message_price_changed", JsonPaidMessagePriceChanged(content));
       break;
     }
+    case td_api::messageGroupCall::ID:
+      break;
+    case td_api::messageDirectMessagePriceChanged::ID: {
+      auto content = static_cast<const td_api::messageDirectMessagePriceChanged *>(message_->content.get());
+      object("direct_message_price_changed", JsonDirectMessagePriceChanged(content));
+      break;
+    }
+    case td_api::messageChecklist::ID: {
+      auto content = static_cast<const td_api::messageChecklist *>(message_->content.get());
+      object("checklist", JsonChecklist(content->list_.get(), client_));
+      break;
+    }
+    case td_api::messageChecklistTasksDone::ID: {
+      auto content = static_cast<const td_api::messageChecklistTasksDone *>(message_->content.get());
+      object("checklist_tasks_done", JsonChecklistTasksDone(content, message_->chat_id, client_));
+      break;
+    }
+    case td_api::messageChecklistTasksAdded::ID: {
+      auto content = static_cast<const td_api::messageChecklistTasksAdded *>(message_->content.get());
+      object("checklist_tasks_added", JsonChecklistTasksAdded(content, message_->chat_id, client_));
+      break;
+    }
+    case td_api::messageGiftedTon::ID:
+      break;
+    case td_api::messageSuggestedPostApprovalFailed::ID: {
+      auto content = static_cast<const td_api::messageSuggestedPostApprovalFailed *>(message_->content.get());
+      object("suggested_post_approval_failed", JsonSuggestedPostApprovalFailed(content, message_->chat_id, client_));
+      break;
+    }
+    case td_api::messageSuggestedPostApproved::ID: {
+      auto content = static_cast<const td_api::messageSuggestedPostApproved *>(message_->content.get());
+      object("suggested_post_approved", JsonSuggestedPostApproved(content, message_->chat_id, client_));
+      break;
+    }
+    case td_api::messageSuggestedPostDeclined::ID: {
+      auto content = static_cast<const td_api::messageSuggestedPostDeclined *>(message_->content.get());
+      object("suggested_post_declined", JsonSuggestedPostDeclined(content, message_->chat_id, client_));
+      break;
+    }
+    case td_api::messageSuggestedPostPaid::ID: {
+      auto content = static_cast<const td_api::messageSuggestedPostPaid *>(message_->content.get());
+      object("suggested_post_paid", JsonSuggestedPostPaid(content, message_->chat_id, client_));
+      break;
+    }
+    case td_api::messageSuggestedPostRefunded::ID: {
+      auto content = static_cast<const td_api::messageSuggestedPostRefunded *>(message_->content.get());
+      object("suggested_post_refunded", JsonSuggestedPostRefunded(content, message_->chat_id, client_));
+      break;
+    }
     default:
       UNREACHABLE();
   }
@@ -3693,8 +4127,18 @@ void Client::JsonMessage::store(td::JsonValueScope *scope) const {
   if (!message_->can_be_saved) {
     object("has_protected_content", td::JsonTrue());
   }
-  if (message_->is_topic_message) {
+  if (is_topic_message(message_->topic_id)) {
     object("is_topic_message", td::JsonTrue());
+  }
+  if (message_->topic_id != nullptr && message_->topic_id->get_id() == td_api::messageTopicDirectMessages::ID) {
+    auto topic_id = static_cast<const td_api::messageTopicDirectMessages *>(message_->topic_id.get())
+                        ->direct_messages_chat_topic_id_;
+    const auto *user_info = client_->get_user_info(topic_id);
+    if (user_info == nullptr) {
+      LOG(ERROR) << "Can't find user " << topic_id << " for direct messages topic";
+    } else {
+      object("direct_messages_topic", JsonDirectMessagesTopic(topic_id, client_));
+    }
   }
   if (message_->is_from_offline) {
     object("is_from_offline", td::JsonTrue());
@@ -3707,6 +4151,12 @@ void Client::JsonMessage::store(td::JsonValueScope *scope) const {
   }
   if (message_->paid_message_star_count != 0) {
     object("paid_star_count", message_->paid_message_star_count);
+  }
+  if (message_->is_paid_post) {
+    object("is_paid_post", td::JsonTrue());
+  }
+  if (message_->suggested_post_info != nullptr) {
+    object("suggested_post_info", JsonSuggestedPostInfo(message_->suggested_post_info.get()));
   }
 }
 
@@ -4523,22 +4973,6 @@ class Client::JsonBusinessMessagesDeleted final : public td::Jsonable {
   const Client *client_;
 };
 
-class Client::JsonStarAmount final : public td::Jsonable {
- public:
-  explicit JsonStarAmount(const td_api::starAmount *amount) : amount_(amount) {
-  }
-  void store(td::JsonValueScope *scope) const {
-    auto object = scope->enter_object();
-    object("star_count", amount_->star_count_);
-    if (amount_->nanostar_count_ != 0) {
-      object("nanostar_count", amount_->nanostar_count_);
-    }
-  }
-
- private:
-  const td_api::starAmount *amount_;
-};
-
 class Client::JsonReceivedGift final : public td::Jsonable {
  public:
   JsonReceivedGift(const td_api::receivedGift *received_gift, const Client *client)
@@ -4609,6 +5043,9 @@ class Client::JsonReceivedGift final : public td::Jsonable {
     }
     if (received_gift_->transfer_star_count_ > 0) {
       object("transfer_star_count", received_gift_->transfer_star_count_);
+    }
+    if (received_gift_->next_transfer_date_ > 0) {
+      object("next_transfer_date", received_gift_->next_transfer_date_);
     }
   }
 
@@ -5391,7 +5828,7 @@ class Client::TdOnGetStoryCallback final : public TdQueryCallback {
 
     CHECK(result->get_id() == td_api::story::ID);
     auto story = static_cast<const td_api::story *>(result.get());
-    answer_query(JsonStory(story->sender_chat_id_, story->id_, client_), std::move(query_));
+    answer_query(JsonStory(story->poster_chat_id_, story->id_, client_), std::move(query_));
   }
 
  private:
@@ -5718,7 +6155,7 @@ class Client::TdOnCheckMessageThreadCallback final : public TdQueryCallback {
     if (message_info->message_thread_id != message_thread_id_) {
       return fail_query_with_error(std::move(query_), 400, "MESSAGE_THREAD_INVALID", "Message thread not found");
     }
-    if (!message_info->is_topic_message) {
+    if (!is_topic_message(message_info->topic_id)) {
       return fail_query_with_error(std::move(query_), 400, "MESSAGE_THREAD_INVALID",
                                    "Message thread is not a forum topic thread");
     }
@@ -6480,6 +6917,25 @@ class Client::TdOnGetReceivedGiftsCallback final : public TdQueryCallback {
   PromisedQueryPtr query_;
 };
 
+class Client::TdOnGetMyStarBalanceCallback final : public TdQueryCallback {
+ public:
+  explicit TdOnGetMyStarBalanceCallback(PromisedQueryPtr query) : query_(std::move(query)) {
+  }
+
+  void on_result(object_ptr<td_api::Object> result) final {
+    if (result->get_id() == td_api::error::ID) {
+      return fail_query_with_error(std::move(query_), move_object_as<td_api::error>(result));
+    }
+
+    CHECK(result->get_id() == td_api::starTransactions::ID);
+    auto transactions = move_object_as<td_api::starTransactions>(result);
+    answer_query(JsonStarAmount(transactions->star_amount_.get()), std::move(query_));
+  }
+
+ private:
+  PromisedQueryPtr query_;
+};
+
 class Client::TdOnGetStarTransactionsCallback final : public TdQueryCallback {
  public:
   TdOnGetStarTransactionsCallback(const Client *client, PromisedQueryPtr query)
@@ -6592,11 +7048,11 @@ class Client::TdOnGetGiftsCallback final : public TdQueryCallback {
       return fail_query_with_error(std::move(query_), move_object_as<td_api::error>(result));
     }
 
-    CHECK(result->get_id() == td_api::gifts::ID);
-    auto gifts = move_object_as<td_api::gifts>(result);
-    td::remove_if(gifts->gifts_,
-                  [](const auto &gift) { return gift->total_count_ > 0 && gift->remaining_count_ == 0; });
-    answer_query(JsonGifts(gifts.get(), client_), std::move(query_));
+    CHECK(result->get_id() == td_api::availableGifts::ID);
+    auto available_gifts = move_object_as<td_api::availableGifts>(result);
+    auto gifts = td::transform(std::move(available_gifts->gifts_), [](auto &&gift) { return std::move(gift->gift_); });
+    td::remove_if(gifts, [](const auto &gift) { return gift->total_count_ > 0 && gift->remaining_count_ == 0; });
+    answer_query(JsonGifts(gifts, client_), std::move(query_));
   }
 
  private:
@@ -7365,39 +7821,40 @@ void Client::check_reply_parameters(td::Slice chat_id_str, InputReplyParameters 
       chat_id_str, AccessRights::Write, std::move(query),
       [this, reply_parameters = std::move(reply_parameters), message_thread_id, on_success = std::move(on_success)](
           int64 chat_id, PromisedQueryPtr query) mutable {
-        auto on_reply_message_resolved = [this, chat_id, message_thread_id, quote = std::move(reply_parameters.quote),
-                                          on_success = std::move(on_success)](int64 reply_in_chat_id,
-                                                                              int64 reply_to_message_id,
-                                                                              PromisedQueryPtr query) mutable {
-          CheckedReplyParameters reply_parameters;
-          reply_parameters.reply_to_message_id = reply_to_message_id;
-          if (reply_to_message_id > 0) {
-            reply_parameters.reply_in_chat_id = reply_in_chat_id;
-            reply_parameters.quote = std::move(quote);
-          }
+        auto on_reply_message_resolved =
+            [this, chat_id, message_thread_id, quote = std::move(reply_parameters.quote),
+             checklist_task_id = reply_parameters.checklist_task_id, on_success = std::move(on_success)](
+                int64 reply_in_chat_id, int64 reply_to_message_id, PromisedQueryPtr query) mutable {
+              CheckedReplyParameters reply_parameters;
+              reply_parameters.reply_to_message_id = reply_to_message_id;
+              if (reply_to_message_id > 0) {
+                reply_parameters.reply_in_chat_id = reply_in_chat_id;
+                reply_parameters.quote = std::move(quote);
+                reply_parameters.checklist_task_id = checklist_task_id;
+              }
 
-          if (message_thread_id <= 0) {
-            // if message thread isn't specified, then the message to be replied can be only from a different chat
-            if (reply_parameters.reply_in_chat_id == chat_id) {
-              reply_parameters.reply_in_chat_id = 0;
-            }
-            return on_success(chat_id, 0, std::move(reply_parameters), std::move(query));
-          }
+              if (message_thread_id <= 0) {
+                // if message thread isn't specified, then the message to be replied can be only from a different chat
+                if (reply_parameters.reply_in_chat_id == chat_id) {
+                  reply_parameters.reply_in_chat_id = 0;
+                }
+                return on_success(chat_id, 0, std::move(reply_parameters), std::move(query));
+              }
 
-          // reply_in_chat_id must be non-zero only for replies in different chats or different topics
-          if (reply_to_message_id > 0 && reply_parameters.reply_in_chat_id == chat_id) {
-            const MessageInfo *message_info = get_message(reply_in_chat_id, reply_to_message_id, true);
-            CHECK(message_info != nullptr);
-            if (message_info->message_thread_id == message_thread_id) {
-              reply_parameters.reply_in_chat_id = 0;
-            }
-          }
+              // reply_in_chat_id must be non-zero only for replies in different chats or different topics
+              if (reply_to_message_id > 0 && reply_parameters.reply_in_chat_id == chat_id) {
+                const MessageInfo *message_info = get_message(reply_in_chat_id, reply_to_message_id, true);
+                CHECK(message_info != nullptr);
+                if (message_info->message_thread_id == message_thread_id) {
+                  reply_parameters.reply_in_chat_id = 0;
+                }
+              }
 
-          send_request(make_object<td_api::getMessage>(chat_id, message_thread_id),
-                       td::make_unique<TdOnCheckMessageThreadCallback<OnSuccess>>(
-                           this, chat_id, message_thread_id, std::move(reply_parameters), std::move(query),
-                           std::move(on_success)));
-        };
+              send_request(make_object<td_api::getMessage>(chat_id, message_thread_id),
+                           td::make_unique<TdOnCheckMessageThreadCallback<OnSuccess>>(
+                               this, chat_id, message_thread_id, std::move(reply_parameters), std::move(query),
+                               std::move(on_success)));
+            };
         if (reply_parameters.reply_to_message_id <= 0) {
           return on_reply_message_resolved(0, 0, std::move(query));
         }
@@ -7751,19 +8208,25 @@ void Client::on_update(object_ptr<td_api::Object> result) {
                              std::move(update->error_));
       break;
     }
-    case td_api::updateStorySendSucceeded::ID: {
-      auto update = move_object_as<td_api::updateStorySendSucceeded>(result);
+    case td_api::updateStoryPostSucceeded::ID: {
+      auto update = move_object_as<td_api::updateStoryPostSucceeded>(result);
       on_story_send_succeeded(std::move(update->story_), update->old_story_id_);
       break;
     }
-    case td_api::updateStorySendFailed::ID: {
-      auto update = move_object_as<td_api::updateStorySendFailed>(result);
-      on_story_send_failed(update->story_->sender_chat_id_, update->story_->id_, std::move(update->error_));
+    case td_api::updateStoryPostFailed::ID: {
+      auto update = move_object_as<td_api::updateStoryPostFailed>(result);
+      on_story_send_failed(update->story_->poster_chat_id_, update->story_->id_, std::move(update->error_));
       break;
     }
     case td_api::updateMessageContent::ID: {
       auto update = move_object_as<td_api::updateMessageContent>(result);
       update_message_content(update->chat_id_, update->message_id_, std::move(update->new_content_));
+      break;
+    }
+    case td_api::updateMessageSuggestedPostInfo::ID: {
+      auto update = move_object_as<td_api::updateMessageSuggestedPostInfo>(result);
+      on_update_message_suggested_post_info(update->chat_id_, update->message_id_,
+                                            std::move(update->suggested_post_info_));
       break;
     }
     case td_api::updateMessageEdited::ID: {
@@ -7971,6 +8434,7 @@ void Client::on_update(object_ptr<td_api::Object> result) {
       supergroup_info->slow_mode_delay = full_info->slow_mode_delay_;
       supergroup_info->unrestrict_boost_count = full_info->unrestrict_boost_count_;
       supergroup_info->linked_chat_id = full_info->linked_chat_id_;
+      supergroup_info->direct_messages_chat_id = full_info->direct_messages_chat_id_;
       supergroup_info->location = std::move(full_info->location_);
       supergroup_info->has_hidden_members = full_info->has_hidden_members_;
       supergroup_info->has_aggressive_anti_spam_enabled = full_info->has_aggressive_anti_spam_enabled_;
@@ -8245,10 +8709,11 @@ td_api::object_ptr<td_api::InputMessageReplyTo> Client::get_input_message_reply_
   if (reply_parameters.reply_to_message_id > 0) {
     if (reply_parameters.reply_in_chat_id != 0) {
       return make_object<td_api::inputMessageReplyToExternalMessage>(
-          reply_parameters.reply_in_chat_id, reply_parameters.reply_to_message_id, std::move(reply_parameters.quote));
+          reply_parameters.reply_in_chat_id, reply_parameters.reply_to_message_id, std::move(reply_parameters.quote),
+          reply_parameters.checklist_task_id);
     }
-    return make_object<td_api::inputMessageReplyToMessage>(reply_parameters.reply_to_message_id,
-                                                           std::move(reply_parameters.quote));
+    return make_object<td_api::inputMessageReplyToMessage>(
+        reply_parameters.reply_to_message_id, std::move(reply_parameters.quote), reply_parameters.checklist_task_id);
   }
   return nullptr;
 }
@@ -8256,8 +8721,8 @@ td_api::object_ptr<td_api::InputMessageReplyTo> Client::get_input_message_reply_
 td_api::object_ptr<td_api::InputMessageReplyTo> Client::get_input_message_reply_to(
     InputReplyParameters &&reply_parameters) {
   if (reply_parameters.reply_in_chat_id.empty() && reply_parameters.reply_to_message_id > 0) {
-    return make_object<td_api::inputMessageReplyToMessage>(reply_parameters.reply_to_message_id,
-                                                           std::move(reply_parameters.quote));
+    return make_object<td_api::inputMessageReplyToMessage>(
+        reply_parameters.reply_to_message_id, std::move(reply_parameters.quote), reply_parameters.checklist_task_id);
   }
   return nullptr;
 }
@@ -8301,12 +8766,14 @@ td::Result<Client::InputReplyParameters> Client::get_reply_parameters(td::JsonVa
   TRY_RESULT(quote,
              get_formatted_text(std::move(input_quote), std::move(parse_mode), object.extract_field("quote_entities")));
   TRY_RESULT(quote_position, object.get_optional_int_field("quote_position"));
+  TRY_RESULT(checklist_task_id, object.get_optional_int_field("checklist_task_id"));
 
   InputReplyParameters result;
   result.reply_in_chat_id = std::move(chat_id);
   result.reply_to_message_id = as_tdlib_message_id(td::max(message_id, 0));
   result.allow_sending_without_reply = allow_sending_without_reply;
   result.quote = make_object<td_api::inputTextQuote>(std::move(quote), quote_position);
+  result.checklist_task_id = checklist_task_id;
   return std::move(result);
 }
 
@@ -8632,6 +9099,61 @@ td::Result<td_api::object_ptr<td_api::ReplyMarkup>> Client::get_reply_markup(td:
   }
 
   return std::move(result);
+}
+
+td::Result<td_api::object_ptr<td_api::SuggestedPostPrice>> Client::get_suggested_post_price(td::JsonValue &&value) {
+  if (value.type() != td::JsonValue::Type::Object) {
+    return td::Status::Error(400, "Object expected as suggested post price");
+  }
+  auto &object = value.get_object();
+
+  TRY_RESULT(currency, object.get_required_string_field("currency"));
+  TRY_RESULT(amount, object.get_required_long_field("amount"));
+
+  if (currency == "XTR") {
+    return make_object<td_api::suggestedPostPriceStar>(amount);
+  }
+  if (currency == "TON") {
+    if (amount % 10000000 != 0) {
+      return td::Status::Error(400, "Suggested post price must be divisible by 10000000 nanotoncoins");
+    }
+    return make_object<td_api::suggestedPostPriceTon>(amount / 10000000);
+  }
+  return td::Status::Error(400, "Invalid suggested post price currency specified");
+}
+
+td::Result<td_api::object_ptr<td_api::inputSuggestedPostInfo>> Client::get_input_suggested_post_info(
+    const Query *query) {
+  auto suggested_post = query->arg("suggested_post_parameters");
+  if (suggested_post.empty()) {
+    return nullptr;
+  }
+
+  LOG(INFO) << "Parsing JSON object: " << suggested_post;
+  auto r_value = json_decode(suggested_post);
+  if (r_value.is_error()) {
+    LOG(INFO) << "Can't parse JSON object: " << r_value.error();
+    return td::Status::Error(400, "Can't parse suggested post parameters JSON object");
+  }
+
+  return get_input_suggested_post_info(r_value.move_as_ok());
+}
+
+td::Result<td_api::object_ptr<td_api::inputSuggestedPostInfo>> Client::get_input_suggested_post_info(
+    td::JsonValue &&value) {
+  if (value.type() != td::JsonValue::Type::Object) {
+    return td::Status::Error(400, "Object expected as suggested post parameters");
+  }
+  auto &object = value.get_object();
+
+  TRY_RESULT(send_date, object.get_optional_int_field("send_date"));
+
+  object_ptr<td_api::SuggestedPostPrice> price;
+  TRY_RESULT(input_price, object.extract_optional_field("price", td::JsonValue::Type::Object));
+  if (input_price.type() == td::JsonValue::Type::Object) {
+    TRY_RESULT_ASSIGN(price, get_suggested_post_price(std::move(input_price)));
+  }
+  return make_object<td_api::inputSuggestedPostInfo>(std::move(price), send_date);
 }
 
 td::Result<td_api::object_ptr<td_api::labeledPricePart>> Client::get_labeled_price_part(td::JsonValue &value) {
@@ -8972,11 +9494,11 @@ td::Result<td_api::object_ptr<td_api::InputMessageContent>> Client::get_input_me
   return nullptr;
 }
 
-td_api::object_ptr<td_api::messageSendOptions> Client::get_message_send_options(bool disable_notification,
-                                                                                bool protect_content,
-                                                                                bool allow_paid_broadcast,
-                                                                                int64 effect_id) {
-  return make_object<td_api::messageSendOptions>(disable_notification, false, protect_content, allow_paid_broadcast, 0,
+td_api::object_ptr<td_api::messageSendOptions> Client::get_message_send_options(
+    bool disable_notification, bool protect_content, bool allow_paid_broadcast, int64 effect_id,
+    int64 direct_messages_topic_id, object_ptr<td_api::inputSuggestedPostInfo> &&input_suggested_post_info) {
+  return make_object<td_api::messageSendOptions>(direct_messages_topic_id, std::move(input_suggested_post_info),
+                                                 disable_notification, false, protect_content, allow_paid_broadcast, 0,
                                                  false, nullptr, effect_id, 0, false);
 }
 
@@ -9555,11 +10077,12 @@ td::Result<td_api::object_ptr<td_api::chatAdministratorRights>> Client::get_chat
   TRY_RESULT(can_post_stories, object.get_optional_bool_field("can_post_stories"));
   TRY_RESULT(can_edit_stories, object.get_optional_bool_field("can_edit_stories"));
   TRY_RESULT(can_delete_stories, object.get_optional_bool_field("can_delete_stories"));
+  TRY_RESULT(can_manage_direct_messages, object.get_optional_bool_field("can_manage_direct_messages"));
   TRY_RESULT(is_anonymous, object.get_optional_bool_field("is_anonymous"));
   return make_object<td_api::chatAdministratorRights>(
       can_manage_chat, can_change_info, can_post_messages, can_edit_messages, can_delete_messages, can_invite_users,
       can_restrict_members, can_pin_messages, can_manage_topics, can_promote_members, can_manage_video_chats,
-      can_post_stories, can_edit_stories, can_delete_stories, is_anonymous);
+      can_post_stories, can_edit_stories, can_delete_stories, can_manage_direct_messages, is_anonymous);
 }
 
 td::Result<td_api::object_ptr<td_api::chatAdministratorRights>> Client::get_chat_administrator_rights(
@@ -10311,6 +10834,77 @@ td::Result<td_api::object_ptr<td_api::chatPermissions>> Client::get_chat_permiss
                                               can_send_videos, can_send_video_notes, can_send_voice_notes,
                                               can_send_polls, can_send_other_messages, can_add_web_page_previews,
                                               can_change_info, can_invite_users, can_pin_messages, can_manage_topics);
+}
+
+td::Result<td_api::object_ptr<td_api::inputChecklistTask>> Client::get_input_checklist_task(
+    td::JsonValue &&input_task) const {
+  if (input_task.type() != td::JsonValue::Type::Object) {
+    return td::Status::Error("expected an Object");
+  }
+
+  auto &object = input_task.get_object();
+  TRY_RESULT(id, object.get_required_int_field("id"));
+  TRY_RESULT(input_text, object.get_required_string_field("text"));
+  TRY_RESULT(parse_mode, object.get_optional_string_field("parse_mode"));
+  auto entities = object.extract_field("text_entities");
+  TRY_RESULT(text, get_formatted_text(std::move(input_text), std::move(parse_mode), std::move(entities)));
+
+  return make_object<td_api::inputChecklistTask>(id, std::move(text));
+}
+
+td::Result<td::vector<td_api::object_ptr<td_api::inputChecklistTask>>> Client::get_input_checklist_tasks(
+    td::JsonValue &&value) const {
+  if (value.type() != td::JsonValue::Type::Array) {
+    return td::Status::Error(400, "Expected an Array of InputChecklistTask");
+  }
+
+  td::vector<object_ptr<td_api::inputChecklistTask>> tasks;
+  for (auto &input_task : value.get_array()) {
+    auto r_task = get_input_checklist_task(std::move(input_task));
+    if (r_task.is_error()) {
+      return td::Status::Error(400, PSLICE() << "Can't parse InputChecklistTask: " << r_task.error().message());
+    }
+    tasks.push_back(r_task.move_as_ok());
+  }
+  return std::move(tasks);
+}
+
+td::Result<td_api::object_ptr<td_api::inputChecklist>> Client::get_input_checklist(
+    const Query *query, td::JsonValue &&input_checklist) const {
+  if (input_checklist.type() != td::JsonValue::Type::Object) {
+    return td::Status::Error("expected an Object");
+  }
+
+  auto &object = input_checklist.get_object();
+  TRY_RESULT(input_title, object.get_required_string_field("title"));
+  TRY_RESULT(parse_mode, object.get_optional_string_field("parse_mode"));
+  auto entities = object.extract_field("title_entities");
+  TRY_RESULT(title, get_formatted_text(std::move(input_title), std::move(parse_mode), std::move(entities)));
+  TRY_RESULT(others_can_add_tasks, object.get_optional_bool_field("others_can_add_tasks"));
+  TRY_RESULT(others_can_mark_tasks_as_done, object.get_optional_bool_field("others_can_mark_tasks_as_done"));
+  TRY_RESULT(input_tasks, object.extract_required_field("tasks", td::JsonValue::Type::Array));
+  TRY_RESULT(tasks, get_input_checklist_tasks(std::move(input_tasks)));
+
+  return make_object<td_api::inputChecklist>(std::move(title), std::move(tasks), others_can_add_tasks,
+                                             others_can_mark_tasks_as_done);
+}
+
+td::Result<td_api::object_ptr<td_api::inputChecklist>> Client::get_input_checklist(const Query *query,
+                                                                                   td::Slice field_name) const {
+  TRY_RESULT(checklist, get_required_string_arg(query, field_name));
+
+  LOG(INFO) << "Parsing JSON object: " << checklist;
+  auto r_value = json_decode(checklist);
+  if (r_value.is_error()) {
+    LOG(INFO) << "Can't parse JSON object: " << r_value.error();
+    return td::Status::Error(400, "Can't parse InputChecklist JSON object");
+  }
+
+  auto r_input_checklist = get_input_checklist(query, r_value.move_as_ok());
+  if (r_input_checklist.is_error()) {
+    return td::Status::Error(400, PSLICE() << "Can't parse InputChecklist: " << r_input_checklist.error().message());
+  }
+  return r_input_checklist.move_as_ok();
 }
 
 td::Result<td_api::object_ptr<td_api::InputMessageContent>> Client::get_input_media(const Query *query,
@@ -11116,12 +11710,12 @@ void Client::on_message_send_failed(int64 chat_id, int64 old_message_id, int64 n
 }
 
 void Client::on_story_send_succeeded(object_ptr<td_api::story> &&story, int64 old_story_id) {
-  auto full_story_id = FullMessageId{story->sender_chat_id_, old_story_id};
+  auto full_story_id = FullMessageId{story->poster_chat_id_, old_story_id};
   auto yet_unsent_story_it = yet_unsent_stories_.find(full_story_id);
   CHECK(yet_unsent_story_it != yet_unsent_stories_.end());
   auto query = std::move(yet_unsent_story_it->second.query);
   yet_unsent_stories_.erase(yet_unsent_story_it);
-  answer_query(JsonStory(story->sender_chat_id_, story->id_, this), std::move(query));
+  answer_query(JsonStory(story->poster_chat_id_, story->id_, this), std::move(query));
 }
 
 void Client::on_story_send_failed(int64 chat_id, int64 story_id, object_ptr<td_api::error> &&error) {
@@ -11644,6 +12238,12 @@ td::Status Client::process_stop_poll_query(PromisedQueryPtr &query) {
   return td::Status::OK();
 }
 
+td::Status Client::process_send_checklist_query(PromisedQueryPtr &query) {
+  TRY_RESULT(input_checklist, get_input_checklist(query.get(), "checklist"));
+  do_send_message(make_object<td_api::inputMessageChecklist>(std::move(input_checklist)), std::move(query));
+  return td::Status::OK();
+}
+
 td::Status Client::process_copy_message_query(PromisedQueryPtr &query) {
   TRY_RESULT(from_chat_id, get_required_string_arg(query.get(), "from_chat_id"));
   auto message_id = get_message_id(query.get());
@@ -11679,10 +12279,14 @@ td::Status Client::process_copy_messages_query(PromisedQueryPtr &query) {
   }
   auto disable_notification = to_bool(query->arg("disable_notification"));
   auto protect_content = to_bool(query->arg("protect_content"));
+  auto direct_messages_topic_id = td::to_integer<int64>(query->arg("direct_messages_topic_id"));
+  TRY_RESULT(input_suggested_post_info, get_input_suggested_post_info(query.get()));
   auto remove_caption = to_bool(query->arg("remove_caption"));
 
+  auto send_options = get_message_send_options(disable_notification, protect_content, false, 0,
+                                               direct_messages_topic_id, std::move(input_suggested_post_info));
   auto on_success = [this, from_chat_id = from_chat_id.str(), message_ids = std::move(message_ids),
-                     disable_notification, protect_content,
+                     send_options = std::move(send_options),
                      remove_caption](int64 chat_id, int64 message_thread_id, CheckedReplyParameters,
                                      PromisedQueryPtr query) mutable {
     auto it = yet_unsent_message_count_.find(chat_id);
@@ -11692,8 +12296,8 @@ td::Status Client::process_copy_messages_query(PromisedQueryPtr &query) {
 
     check_messages(
         from_chat_id, std::move(message_ids), true, AccessRights::Read, "message to forward", std::move(query),
-        [this, chat_id, message_thread_id, disable_notification, protect_content, remove_caption](
-            int64 from_chat_id, td::vector<int64> message_ids, PromisedQueryPtr query) {
+        [this, chat_id, message_thread_id, send_options = std::move(send_options), remove_caption](
+            int64 from_chat_id, td::vector<int64> message_ids, PromisedQueryPtr query) mutable {
           auto &count = yet_unsent_message_count_[chat_id];
           if (count >= MAX_CONCURRENTLY_SENT_CHAT_MESSAGES) {
             return fail_query_flood_limit_exceeded(std::move(query));
@@ -11703,9 +12307,8 @@ td::Status Client::process_copy_messages_query(PromisedQueryPtr &query) {
           count += static_cast<int32>(message_count);
 
           send_request(
-              make_object<td_api::forwardMessages>(
-                  chat_id, message_thread_id, from_chat_id, std::move(message_ids),
-                  get_message_send_options(disable_notification, protect_content, false, 0), true, remove_caption),
+              make_object<td_api::forwardMessages>(chat_id, message_thread_id, from_chat_id, std::move(message_ids),
+                                                   std::move(send_options), true, remove_caption),
               td::make_unique<TdOnForwardMessagesCallback>(this, chat_id, message_count, std::move(query)));
         });
   };
@@ -11741,10 +12344,14 @@ td::Status Client::process_forward_messages_query(PromisedQueryPtr &query) {
   }
   auto disable_notification = to_bool(query->arg("disable_notification"));
   auto protect_content = to_bool(query->arg("protect_content"));
+  auto direct_messages_topic_id = td::to_integer<int64>(query->arg("direct_messages_topic_id"));
+  TRY_RESULT(input_suggested_post_info, get_input_suggested_post_info(query.get()));
 
+  auto send_options = get_message_send_options(disable_notification, protect_content, false, 0,
+                                               direct_messages_topic_id, std::move(input_suggested_post_info));
   auto on_success = [this, from_chat_id = from_chat_id.str(), message_ids = std::move(message_ids),
-                     disable_notification, protect_content](int64 chat_id, int64 message_thread_id,
-                                                            CheckedReplyParameters, PromisedQueryPtr query) mutable {
+                     send_options = std::move(send_options)](int64 chat_id, int64 message_thread_id,
+                                                             CheckedReplyParameters, PromisedQueryPtr query) mutable {
     auto it = yet_unsent_message_count_.find(chat_id);
     if (it != yet_unsent_message_count_.end() && it->second >= MAX_CONCURRENTLY_SENT_CHAT_MESSAGES) {
       return fail_query_flood_limit_exceeded(std::move(query));
@@ -11752,8 +12359,8 @@ td::Status Client::process_forward_messages_query(PromisedQueryPtr &query) {
 
     check_messages(
         from_chat_id, std::move(message_ids), true, AccessRights::Read, "message to forward", std::move(query),
-        [this, chat_id, message_thread_id, disable_notification, protect_content](
-            int64 from_chat_id, td::vector<int64> message_ids, PromisedQueryPtr query) {
+        [this, chat_id, message_thread_id, send_options = std::move(send_options)](
+            int64 from_chat_id, td::vector<int64> message_ids, PromisedQueryPtr query) mutable {
           auto &count = yet_unsent_message_count_[chat_id];
           if (count >= MAX_CONCURRENTLY_SENT_CHAT_MESSAGES) {
             return fail_query_flood_limit_exceeded(std::move(query));
@@ -11762,10 +12369,10 @@ td::Status Client::process_forward_messages_query(PromisedQueryPtr &query) {
           auto message_count = message_ids.size();
           count += static_cast<int32>(message_count);
 
-          send_request(make_object<td_api::forwardMessages>(
-                           chat_id, message_thread_id, from_chat_id, std::move(message_ids),
-                           get_message_send_options(disable_notification, protect_content, false, 0), false, false),
-                       td::make_unique<TdOnForwardMessagesCallback>(this, chat_id, message_count, std::move(query)));
+          send_request(
+              make_object<td_api::forwardMessages>(chat_id, message_thread_id, from_chat_id, std::move(message_ids),
+                                                   std::move(send_options), false, false),
+              td::make_unique<TdOnForwardMessagesCallback>(this, chat_id, message_count, std::move(query)));
         });
   };
   check_reply_parameters(chat_id, InputReplyParameters(), message_thread_id, std::move(query), std::move(on_success));
@@ -11782,15 +12389,19 @@ td::Status Client::process_send_media_group_query(PromisedQueryPtr &query) {
   auto protect_content = to_bool(query->arg("protect_content"));
   auto allow_paid_broadcast = to_bool(query->arg("allow_paid_broadcast"));
   auto effect_id = td::to_integer<int64>(query->arg("message_effect_id"));
+  auto direct_messages_topic_id = td::to_integer<int64>(query->arg("direct_messages_topic_id"));
+  TRY_RESULT(input_suggested_post_info, get_input_suggested_post_info(query.get()));
   // TRY_RESULT(reply_markup, get_reply_markup(query.get(), bot_user_ids_));
   auto reply_markup = nullptr;
   TRY_RESULT(input_message_contents, get_input_message_contents(query.get(), "media"));
 
+  auto send_options = get_message_send_options(disable_notification, protect_content, allow_paid_broadcast, effect_id,
+                                               direct_messages_topic_id, std::move(input_suggested_post_info));
   resolve_reply_markup_bot_usernames(
       std::move(reply_markup), std::move(query),
       [this, chat_id_str = chat_id.str(), message_thread_id, business_connection_id = business_connection_id.str(),
        reply_parameters = std::move(reply_parameters), disable_notification, protect_content, allow_paid_broadcast,
-       effect_id, input_message_contents = std::move(input_message_contents)](
+       effect_id, send_options = std::move(send_options), input_message_contents = std::move(input_message_contents)](
           object_ptr<td_api::ReplyMarkup> reply_markup, PromisedQueryPtr query) mutable {
         if (!business_connection_id.empty()) {
           return check_business_connection_chat_id(
@@ -11807,7 +12418,7 @@ td::Status Client::process_send_media_group_query(PromisedQueryPtr &query) {
               });
         }
 
-        auto on_success = [this, disable_notification, protect_content, allow_paid_broadcast, effect_id,
+        auto on_success = [this, send_options = std::move(send_options),
                            input_message_contents = std::move(input_message_contents),
                            reply_markup = std::move(reply_markup)](int64 chat_id, int64 message_thread_id,
                                                                    CheckedReplyParameters reply_parameters,
@@ -11819,12 +12430,10 @@ td::Status Client::process_send_media_group_query(PromisedQueryPtr &query) {
           auto message_count = input_message_contents.size();
           count += static_cast<int32>(message_count);
 
-          send_request(
-              make_object<td_api::sendMessageAlbum>(
-                  chat_id, message_thread_id, get_input_message_reply_to(std::move(reply_parameters)),
-                  get_message_send_options(disable_notification, protect_content, allow_paid_broadcast, effect_id),
-                  std::move(input_message_contents)),
-              td::make_unique<TdOnSendMessageAlbumCallback>(this, chat_id, message_count, std::move(query)));
+          send_request(make_object<td_api::sendMessageAlbum>(
+                           chat_id, message_thread_id, get_input_message_reply_to(std::move(reply_parameters)),
+                           std::move(send_options), std::move(input_message_contents)),
+                       td::make_unique<TdOnSendMessageAlbumCallback>(this, chat_id, message_count, std::move(query)));
         };
         check_reply_parameters(chat_id_str, std::move(reply_parameters), message_thread_id, std::move(query),
                                std::move(on_success), allow_paid_broadcast);
@@ -12085,6 +12694,42 @@ td::Status Client::process_edit_message_caption_query(PromisedQueryPtr &query) {
   return td::Status::OK();
 }
 
+td::Status Client::process_edit_message_checklist_query(PromisedQueryPtr &query) {
+  auto business_connection_id = query->arg("business_connection_id");
+  auto chat_id = query->arg("chat_id");
+  auto message_id = get_message_id(query.get());
+  TRY_RESULT(reply_markup, get_reply_markup(query.get(), bot_user_ids_));
+  TRY_RESULT(input_checklist, get_input_checklist(query.get(), "checklist"));
+
+  resolve_reply_markup_bot_usernames(
+      std::move(reply_markup), std::move(query),
+      [this, business_connection_id = business_connection_id.str(), chat_id_str = chat_id.str(), message_id,
+       input_checklist = std::move(input_checklist)](object_ptr<td_api::ReplyMarkup> reply_markup,
+                                                     PromisedQueryPtr query) mutable {
+        if (!business_connection_id.empty()) {
+          return check_business_connection_chat_id(
+              business_connection_id, chat_id_str, std::move(query),
+              [this, message_id, reply_markup = std::move(reply_markup), input_checklist = std::move(input_checklist)](
+                  const BusinessConnection *business_connection, int64 chat_id, PromisedQueryPtr query) mutable {
+                send_request(make_object<td_api::editBusinessMessageChecklist>(business_connection->id_, chat_id,
+                                                                               message_id, std::move(reply_markup),
+                                                                               std::move(input_checklist)),
+                             td::make_unique<TdOnReturnBusinessMessageCallback>(this, business_connection->id_,
+                                                                                std::move(query)));
+              });
+        }
+
+        check_message(chat_id_str, message_id, false, AccessRights::Edit, "message to edit", std::move(query),
+                      [this, reply_markup = std::move(reply_markup), input_checklist = std::move(input_checklist)](
+                          int64 chat_id, int64 message_id, PromisedQueryPtr query) mutable {
+                        send_request(make_object<td_api::editMessageChecklist>(
+                                         chat_id, message_id, std::move(reply_markup), std::move(input_checklist)),
+                                     td::make_unique<TdOnEditMessageCallback>(this, std::move(query)));
+                      });
+      });
+  return td::Status::OK();
+}
+
 td::Status Client::process_edit_message_reply_markup_query(PromisedQueryPtr &query) {
   auto business_connection_id = query->arg("business_connection_id");
   auto chat_id = query->arg("chat_id");
@@ -12177,7 +12822,7 @@ td::Status Client::process_post_story_query(PromisedQueryPtr &query) {
         auto is_posted_to_chat_page = to_bool(query->arg("post_to_chat_page"));
         auto protect_content = to_bool(query->arg("protect_content"));
         send_request(
-            make_object<td_api::sendStory>(business_connection->user_chat_id_, std::move(content), std::move(areas),
+            make_object<td_api::postStory>(business_connection->user_chat_id_, std::move(content), std::move(areas),
                                            std::move(caption), make_object<td_api::storyPrivacySettingsEveryone>(),
                                            active_period, nullptr, is_posted_to_chat_page, protect_content),
             td::make_unique<TdOnPostStoryCallback>(this, std::move(query)));
@@ -12230,6 +12875,13 @@ td::Status Client::process_create_invoice_link_query(PromisedQueryPtr &query) {
   }
   send_request(make_object<td_api::createInvoiceLink>(td::string(), std::move(input_message_invoice)),
                td::make_unique<TdOnCreateInvoiceLinkCallback>(std::move(query)));
+  return td::Status::OK();
+}
+
+td::Status Client::process_get_my_star_balance_query(PromisedQueryPtr &query) {
+  send_request(make_object<td_api::getStarTransactions>(make_object<td_api::messageSenderUser>(my_id_), td::string(),
+                                                        nullptr, td::string(), 0),
+               td::make_unique<TdOnGetMyStarBalanceCallback>(std::move(query)));
   return td::Status::OK();
 }
 
@@ -12991,6 +13643,32 @@ td::Status Client::process_unpin_all_chat_messages_query(PromisedQueryPtr &query
   return td::Status::OK();
 }
 
+td::Status Client::process_approve_suggested_post_query(PromisedQueryPtr &query) {
+  auto chat_id = query->arg("chat_id");
+  auto message_id = get_message_id(query.get());
+  auto send_date = td::to_integer<int32>(query->arg("send_date"));
+
+  check_message(chat_id, message_id, false, AccessRights::Write, "suggested post", std::move(query),
+                [this, send_date](int64 chat_id, int64 message_id, PromisedQueryPtr query) {
+                  send_request(make_object<td_api::approveSuggestedPost>(chat_id, message_id, send_date),
+                               td::make_unique<TdOnOkQueryCallback>(std::move(query)));
+                });
+  return td::Status::OK();
+}
+
+td::Status Client::process_decline_suggested_post_query(PromisedQueryPtr &query) {
+  auto chat_id = query->arg("chat_id");
+  auto message_id = get_message_id(query.get());
+  auto comment = query->arg("comment");
+
+  check_message(chat_id, message_id, false, AccessRights::Write, "suggested post", std::move(query),
+                [this, comment = comment.str()](int64 chat_id, int64 message_id, PromisedQueryPtr query) {
+                  send_request(make_object<td_api::declineSuggestedPost>(chat_id, message_id, comment),
+                               td::make_unique<TdOnOkQueryCallback>(std::move(query)));
+                });
+  return td::Status::OK();
+}
+
 td::Status Client::process_set_chat_sticker_set_query(PromisedQueryPtr &query) {
   auto chat_id = query->arg("chat_id");
   auto sticker_set_name = query->arg("sticker_set_name");
@@ -13271,13 +13949,14 @@ td::Status Client::process_promote_chat_member_query(PromisedQueryPtr &query) {
   auto can_post_stories = to_bool(query->arg("can_post_stories"));
   auto can_edit_stories = to_bool(query->arg("can_edit_stories"));
   auto can_delete_stories = to_bool(query->arg("can_delete_stories"));
+  auto can_manage_direct_messages = to_bool(query->arg("can_manage_direct_messages"));
   auto is_anonymous = to_bool(query->arg("is_anonymous"));
   auto status = make_object<td_api::chatMemberStatusAdministrator>(
       td::string(), true,
       make_object<td_api::chatAdministratorRights>(
           can_manage_chat, can_change_info, can_post_messages, can_edit_messages, can_delete_messages, can_invite_users,
           can_restrict_members, can_pin_messages, can_manage_topics, can_promote_members, can_manage_video_chats,
-          can_post_stories, can_edit_stories, can_delete_stories, is_anonymous));
+          can_post_stories, can_edit_stories, can_delete_stories, can_manage_direct_messages, is_anonymous));
   check_chat(chat_id, AccessRights::Write, std::move(query),
              [this, user_id, status = std::move(status)](int64 chat_id, PromisedQueryPtr query) mutable {
                auto chat_info = get_chat(chat_id);
@@ -14175,17 +14854,24 @@ void Client::do_send_message(object_ptr<td_api::InputMessageContent> input_messa
   auto protect_content = to_bool(query->arg("protect_content"));
   auto allow_paid_broadcast = to_bool(query->arg("allow_paid_broadcast"));
   auto effect_id = td::to_integer<int64>(query->arg("message_effect_id"));
+  auto direct_messages_topic_id = td::to_integer<int64>(query->arg("direct_messages_topic_id"));
+  auto r_input_suggested_post_info = get_input_suggested_post_info(query.get());
+  if (r_input_suggested_post_info.is_error()) {
+    return fail_query_with_error(std::move(query), 400, r_input_suggested_post_info.error().message());
+  }
   auto r_reply_markup = get_reply_markup(query.get(), bot_user_ids_);
   if (r_reply_markup.is_error()) {
     return fail_query_with_error(std::move(query), 400, r_reply_markup.error().message());
   }
   auto reply_markup = r_reply_markup.move_as_ok();
 
+  auto send_options = get_message_send_options(disable_notification, protect_content, allow_paid_broadcast, effect_id,
+                                               direct_messages_topic_id, r_input_suggested_post_info.move_as_ok());
   resolve_reply_markup_bot_usernames(
       std::move(reply_markup), std::move(query),
       [this, chat_id_str = chat_id.str(), message_thread_id, business_connection_id = business_connection_id.str(),
        reply_parameters = std::move(reply_parameters), disable_notification, protect_content, allow_paid_broadcast,
-       effect_id, input_message_content = std::move(input_message_content)](
+       effect_id, send_options = std::move(send_options), input_message_content = std::move(input_message_content)](
           object_ptr<td_api::ReplyMarkup> reply_markup, PromisedQueryPtr query) mutable {
         if (!business_connection_id.empty()) {
           return check_business_connection_chat_id(
@@ -14202,7 +14888,7 @@ void Client::do_send_message(object_ptr<td_api::InputMessageContent> input_messa
               });
         }
 
-        auto on_success = [this, disable_notification, protect_content, allow_paid_broadcast, effect_id,
+        auto on_success = [this, send_options = std::move(send_options),
                            input_message_content = std::move(input_message_content),
                            reply_markup = std::move(reply_markup)](int64 chat_id, int64 message_thread_id,
                                                                    CheckedReplyParameters reply_parameters,
@@ -14213,12 +14899,10 @@ void Client::do_send_message(object_ptr<td_api::InputMessageContent> input_messa
           }
           count++;
 
-          send_request(
-              make_object<td_api::sendMessage>(
-                  chat_id, message_thread_id, get_input_message_reply_to(std::move(reply_parameters)),
-                  get_message_send_options(disable_notification, protect_content, allow_paid_broadcast, effect_id),
-                  std::move(reply_markup), std::move(input_message_content)),
-              td::make_unique<TdOnSendMessageCallback>(this, chat_id, std::move(query)));
+          send_request(make_object<td_api::sendMessage>(
+                           chat_id, message_thread_id, get_input_message_reply_to(std::move(reply_parameters)),
+                           std::move(send_options), std::move(reply_markup), std::move(input_message_content)),
+                       td::make_unique<TdOnSendMessageCallback>(this, chat_id, std::move(query)));
         };
         check_reply_parameters(chat_id_str, std::move(reply_parameters), message_thread_id, std::move(query),
                                std::move(on_success), allow_paid_broadcast);
@@ -14253,7 +14937,7 @@ void Client::on_sent_message(object_ptr<td_api::message> &&message, int64 query_
 
 void Client::on_sent_story(object_ptr<td_api::story> &&story, PromisedQueryPtr query) {
   CHECK(story != nullptr);
-  int64 chat_id = story->sender_chat_id_;
+  int64 chat_id = story->poster_chat_id_;
   int64 story_id = story->id_;
 
   FullMessageId full_story_id{chat_id, story_id};
@@ -14559,6 +15243,7 @@ void Client::add_supergroup(SupergroupInfo *supergroup_info, object_ptr<td_api::
   supergroup_info->status = std::move(supergroup->status_);
   supergroup_info->is_supergroup = !supergroup->is_channel_;
   supergroup_info->is_forum = supergroup->is_forum_;
+  supergroup_info->is_direct_messages = supergroup->is_direct_messages_group_;
   supergroup_info->has_location = supergroup->has_location_;
   supergroup_info->join_to_send_messages = supergroup->join_to_send_messages_;
   supergroup_info->join_by_request = supergroup->join_by_request_;
@@ -14779,6 +15464,9 @@ void Client::json_store_administrator_rights(td::JsonObjectScope &object, const 
   object("can_post_stories", td::JsonBool(rights->can_post_stories_));
   object("can_edit_stories", td::JsonBool(rights->can_edit_stories_));
   object("can_delete_stories", td::JsonBool(rights->can_delete_stories_));
+  if (chat_type == ChatType::Channel) {
+    object("can_manage_direct_messages", td::JsonBool(rights->can_manage_direct_messages_));
+  }
   object("is_anonymous", td::JsonBool(rights->is_anonymous_));
 }
 
@@ -15344,6 +16032,11 @@ bool Client::need_skip_update_message(int64 chat_id, const object_ptr<td_api::me
       case td_api::messageGiveawayWinners::ID:
       case td_api::messageGiveawayCompleted::ID:
       case td_api::messagePaymentRefunded::ID:
+      case td_api::messageSuggestedPostApprovalFailed::ID:
+      case td_api::messageSuggestedPostApproved::ID:
+      case td_api::messageSuggestedPostDeclined::ID:
+      case td_api::messageSuggestedPostPaid::ID:
+      case td_api::messageSuggestedPostRefunded::ID:
         // don't skip
         break;
       default:
@@ -15458,6 +16151,10 @@ bool Client::need_skip_update_message(int64 chat_id, const object_ptr<td_api::me
       return true;
     case td_api::messagePaidMessagesRefunded::ID:
       return true;
+    case td_api::messageGroupCall::ID:
+      return true;
+    case td_api::messageGiftedTon::ID:
+      return true;
     default:
       break;
   }
@@ -15505,14 +16202,40 @@ td::int64 Client::get_same_chat_reply_to_message_id(const object_ptr<td_api::mes
         return static_cast<const td_api::messagePinMessage *>(message->content_.get())->message_id_;
       case td_api::messageGameScore::ID:
         return static_cast<const td_api::messageGameScore *>(message->content_.get())->game_message_id_;
+      case td_api::messagePaymentSuccessful::ID: {
+        const auto *content = static_cast<const td_api::messagePaymentSuccessful *>(message->content_.get());
+        return content->invoice_chat_id_ == message->chat_id_ ? content->invoice_message_id_ : static_cast<int64>(0);
+      }
       case td_api::messageChatSetBackground::ID:
         return static_cast<const td_api::messageChatSetBackground *>(message->content_.get())
             ->old_background_message_id_;
       case td_api::messageGiveawayCompleted::ID:
         return static_cast<const td_api::messageGiveawayCompleted *>(message->content_.get())->giveaway_message_id_;
-      case td_api::messagePaymentSuccessful::ID: {
-        const auto *content = static_cast<const td_api::messagePaymentSuccessful *>(message->content_.get());
-        return content->invoice_chat_id_ == message->chat_id_ ? content->invoice_message_id_ : static_cast<int64>(0);
+      case td_api::messageChecklistTasksDone::ID:
+        return static_cast<const td_api::messageChecklistTasksDone *>(message->content_.get())->checklist_message_id_;
+      case td_api::messageChecklistTasksAdded::ID:
+        return static_cast<const td_api::messageChecklistTasksAdded *>(message->content_.get())->checklist_message_id_;
+      case td_api::messageSuggestedPostApprovalFailed::ID:
+        return static_cast<const td_api::messageSuggestedPostApprovalFailed *>(message->content_.get())
+            ->suggested_post_message_id_;
+      case td_api::messageSuggestedPostApproved::ID:
+        return static_cast<const td_api::messageSuggestedPostApproved *>(message->content_.get())
+            ->suggested_post_message_id_;
+      case td_api::messageSuggestedPostDeclined::ID:
+        return static_cast<const td_api::messageSuggestedPostDeclined *>(message->content_.get())
+            ->suggested_post_message_id_;
+      case td_api::messageSuggestedPostPaid::ID:
+        return static_cast<const td_api::messageSuggestedPostPaid *>(message->content_.get())
+            ->suggested_post_message_id_;
+      case td_api::messageSuggestedPostRefunded::ID:
+        return static_cast<const td_api::messageSuggestedPostRefunded *>(message->content_.get())
+            ->suggested_post_message_id_;
+      case td_api::messageUpgradedGift::ID: {
+        auto *origin = static_cast<const td_api::messageUpgradedGift *>(message->content_.get())->origin_.get();
+        if (origin->get_id() == td_api::upgradedGiftOriginUpgrade::ID) {
+          return static_cast<const td_api::upgradedGiftOriginUpgrade *>(origin)->gift_message_id_;
+        }
+        return static_cast<int64>(0);
       }
       default:
         return static_cast<int64>(0);
@@ -15588,6 +16311,46 @@ td::CSlice Client::get_callback_data(const object_ptr<td_api::InlineKeyboardButt
       UNREACHABLE();
       return td::CSlice();
   }
+}
+
+bool Client::are_equal_suggested_post_prices(const td_api::SuggestedPostPrice *lhs,
+                                             const td_api::SuggestedPostPrice *rhs) {
+  if (lhs == nullptr) {
+    return rhs == nullptr;
+  }
+  if (rhs == nullptr) {
+    return false;
+  }
+  if (lhs->get_id() != rhs->get_id()) {
+    return false;
+  }
+  switch (lhs->get_id()) {
+    case td_api::suggestedPostPriceStar::ID:
+      return static_cast<const td_api::suggestedPostPriceStar *>(lhs)->star_count_ ==
+             static_cast<const td_api::suggestedPostPriceStar *>(rhs)->star_count_;
+    case td_api::suggestedPostPriceTon::ID:
+      return static_cast<const td_api::suggestedPostPriceTon *>(lhs)->toncoin_cent_count_ ==
+             static_cast<const td_api::suggestedPostPriceTon *>(rhs)->toncoin_cent_count_;
+    default:
+      UNREACHABLE();
+      return false;
+  }
+}
+
+void Client::set_message_suggested_post_info(MessageInfo *message_info,
+                                             object_ptr<td_api::suggestedPostInfo> &&suggested_post_info) {
+  if (suggested_post_info == nullptr && message_info->suggested_post_info == nullptr) {
+    return;
+  }
+  if (suggested_post_info != nullptr && message_info->suggested_post_info != nullptr &&
+      suggested_post_info->send_date_ == message_info->suggested_post_info->send_date_ &&
+      suggested_post_info->state_->get_id() == message_info->suggested_post_info->state_->get_id() &&
+      are_equal_suggested_post_prices(suggested_post_info->price_.get(),
+                                      message_info->suggested_post_info->price_.get())) {
+    return;
+  }
+  message_info->suggested_post_info = std::move(suggested_post_info);
+  message_info->is_content_changed = true;
 }
 
 bool Client::are_equal_inline_keyboard_buttons(const td_api::inlineKeyboardButton *lhs,
@@ -15971,11 +16734,12 @@ void Client::init_message(MessageInfo *message_info, object_ptr<td_api::message>
   message_info->can_be_saved = message->can_be_saved_;
   message_info->is_scheduled = message->scheduling_state_ != nullptr;
   message_info->is_from_offline = message->is_from_offline_;
-  message_info->is_topic_message = message->is_topic_message_;
+  message_info->topic_id = std::move(message->topic_id_);
   message_info->author_signature = std::move(message->author_signature_);
   message_info->sender_boost_count = message->sender_boost_count_;
   message_info->paid_message_star_count = message->paid_message_star_count_;
   message_info->effect_id = message->effect_id_;
+  message_info->is_paid_post = message->is_paid_star_suggested_post_ || message->is_paid_ton_suggested_post_;
 
   drop_internal_reply_to_message_in_another_chat(message);
 
@@ -16002,6 +16766,7 @@ void Client::init_message(MessageInfo *message_info, object_ptr<td_api::message>
   } else if (message->content_->get_id() == td_api::messagePoll::ID) {
     message_info->content = std::move(message->content_);
   }
+  set_message_suggested_post_info(message_info, std::move(message->suggested_post_info_));
   set_message_reply_markup(message_info, std::move(message->reply_markup_));
 
   message = nullptr;
@@ -16033,6 +16798,16 @@ void Client::update_message_content(int64 chat_id, int64 message_id, object_ptr<
 
   message_info->content = std::move(content);
   message_info->is_content_changed = true;
+}
+
+void Client::on_update_message_suggested_post_info(int64 chat_id, int64 message_id,
+                                                   object_ptr<td_api::suggestedPostInfo> &&suggested_post_info) {
+  auto message_info = get_message_editable(chat_id, message_id);
+  if (message_info == nullptr) {
+    return;
+  }
+
+  set_message_suggested_post_info(message_info, std::move(suggested_post_info));
 }
 
 void Client::on_update_message_edited(int64 chat_id, int64 message_id, int32 edit_date,
@@ -16214,6 +16989,11 @@ td::int64 Client::get_status_custom_emoji_id(const object_ptr<td_api::emojiStatu
       UNREACHABLE();
       return 0;
   }
+}
+
+bool Client::is_topic_message(const object_ptr<td_api::MessageTopic> &topic_id) {
+  return topic_id != nullptr && topic_id->get_id() == td_api::messageTopicForum::ID &&
+         static_cast<const td_api::messageTopicForum *>(topic_id.get())->forum_topic_id_ != GENERAL_MESSAGE_THREAD_ID;
 }
 
 td::FlatHashMap<td::string, td::Status (Client::*)(PromisedQueryPtr &query)> Client::methods_;
